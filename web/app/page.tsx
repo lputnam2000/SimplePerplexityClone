@@ -1,5 +1,5 @@
 "use client";
-import React, { FC } from "react";
+import React, { FC, useState } from "react";
 import styled from "styled-components";
 
 /**
@@ -11,14 +11,65 @@ import styled from "styled-components";
  * - Information cards below
  */
 const Home: FC = () => {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResults | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/agent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query })
+      });
+      const data = await response.json();
+      setResults(data);
+    } catch (error) {
+      setResults(null);
+      console.error('Search failed:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <PageContainer>
       <MainHeading>What do you want to know?</MainHeading>
 
-      <SearchSection>
-        <SearchInput placeholder="Ask anything..." />
-        <SearchButton>Ask</SearchButton>
+      <SearchSection onSubmit={handleSearch}>
+        <SearchInput 
+          placeholder="Ask anything..." 
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <SearchButton type="submit" disabled={isLoading}>
+          {isLoading ? "Searching..." : "Ask"}
+        </SearchButton>
       </SearchSection>
+
+      {results && (
+        <ResultsSection>
+          <Answer>{results.answer}</Answer>
+          {results.sources.length > 0 && (
+            <SourcesSection>
+              <SourcesTitle>Sources:</SourcesTitle>
+              <SourcesList>
+                {results.sources.map((source, index) => (
+                  <SourceItem key={index}>
+                    <SourceLink href={source.link} target="_blank" rel="noopener noreferrer">
+                      {source.title}
+                    </SourceLink>
+                  </SourceItem>
+                ))}
+              </SourcesList>
+            </SourcesSection>
+          )}
+        </ResultsSection>
+      )}
 
       <CardsSection>
         <InfoCard>
@@ -72,7 +123,7 @@ const MainHeading = styled.h1`
 `;
 
 /** Container for the search input and button. */
-const SearchSection = styled.div`
+const SearchSection = styled.form`
   display: flex;
   align-items: center;
   width: 80%;
@@ -142,4 +193,53 @@ const CardTitle = styled.h2`
 const CardDescription = styled.p`
   font-size: 0.95rem;
   color: #ccc;
+`;
+
+const ResultsSection = styled.div`
+  width: 80%;
+  max-width: 800px;
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  overflow-x: auto;
+`;
+
+const Answer = styled.div`
+  color: #fff;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+  white-space: pre-wrap;
+`;
+
+const SourcesSection = styled.div`
+  border-top: 1px solid #333;
+  padding-top: 1rem;
+  margin-top: 1rem;
+`;
+
+const SourcesTitle = styled.h3`
+  color: #fff;
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+`;
+
+const SourcesList = styled.ul`
+  list-style: none;
+  padding: 0;
+  margin: 0;
+`;
+
+const SourceItem = styled.li`
+  margin: 0.5rem 0;
+`;
+
+const SourceLink = styled.a`
+  color: #0070f3;
+  text-decoration: none;
+  
+  &:hover {
+    text-decoration: underline;
+  }
 `;
