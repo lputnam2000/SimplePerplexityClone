@@ -5,6 +5,7 @@ interface SearchResult {
     title: string;
     link: string;
     snippet: string;
+    number: number;
   }>;
   knowledge_graph?: {
     title?: string;
@@ -44,15 +45,22 @@ export async function POST(request: NextRequest) {
       context += `URL: ${result.link}\n\n`;
     });
 
-    // Step 3: Send the context and original query to the LLM
+    // Step 3: Send the context and original query to the LLM with improved instructions
     const llmResponse = await fetch(`${request.nextUrl.origin}/api/llm`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        query: `Based on the search results, please answer this question: ${query}. 
-                Include citations to the sources ([Source 1], [Source 2], etc.) when referencing information.`,
+        query: `Based on the search results, please answer this question: ${query}
+               Format your response in markdown.
+               When citing sources, use markdown links with the source number, like this: [[Source 1]](source1-url)
+               Make important points and section headers bold using markdown (**text**).
+               Use bullet points where appropriate.
+               For mathematical formulas, use these formats:
+               - Inline math: $formula$
+               - Block math: $$formula$$
+               Write formulas directly without \\text{} commands.`,
         context: context
       })
     });
@@ -60,13 +68,15 @@ export async function POST(request: NextRequest) {
     const llmData = await llmResponse.json();
     console.log(llmData);
 
-    // Step 4: Return the final response
+    // Step 4: Return the final response with markdown and linked sources
     return NextResponse.json({
       answer: llmData.response,
       sources: searchData.organic_results?.slice(0, 3).map(result => ({
         title: result.title,
-        link: result.link
-      }))
+        link: result.link,
+        number: result.number
+      })),
+      isMarkdown: true
     });
 
   } catch (error: unknown) {

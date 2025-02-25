@@ -13,6 +13,9 @@
     "openai": "^4.85.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.0.0",
+    "rehype-katex": "^7.0.1",
+    "remark-math": "^6.0.0",
     "serpapi": "^2.1.0",
     "styled-components": "^6.1.15"
   },

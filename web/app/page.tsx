@@ -1,6 +1,10 @@
 "use client";
 import React, { FC, useState } from "react";
 import styled from "styled-components";
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 /**
  * Home Page - Clone of the described dark-themed search interface.
@@ -36,6 +40,24 @@ const Home: FC = () => {
     }
   };
 
+  const customRenderers = {
+    a: ({ href, children }: { href: string, children: React.ReactNode }) => {
+      const sourceMatch = children?.toString().match(/\[Source (\d+)\]/);
+      if (sourceMatch && results?.sources) {
+        const sourceNumber = parseInt(sourceMatch[1]) - 1;
+        const source = results.sources[sourceNumber];
+        if (source) {
+          return (
+            <SourceLink href={source.link} target="_blank" rel="noopener noreferrer">
+              {children}
+            </SourceLink>
+          );
+        }
+      }
+      return <SourceLink href={href} target="_blank" rel="noopener noreferrer">{children}</SourceLink>;
+    }
+  };
+
   return (
     <PageContainer>
       <MainHeading>What do you want to know?</MainHeading>
@@ -53,13 +75,23 @@ const Home: FC = () => {
 
       {results && (
         <ResultsSection>
-          <Answer>{results.answer}</Answer>
+          <AnswerSection>
+            <ReactMarkdown
+              components={customRenderers}
+              remarkPlugins={[remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+            >
+              {results.answer}
+            </ReactMarkdown>
+          </AnswerSection>
+          
           {results.sources.length > 0 && (
             <SourcesSection>
               <SourcesTitle>Sources:</SourcesTitle>
               <SourcesList>
-                {results.sources.map((source, index) => (
+                {results.sources.map((source, index: number) => (
                   <SourceItem key={index}>
+                    <SourceNumber>{index + 1}.</SourceNumber>
                     <SourceLink href={source.link} target="_blank" rel="noopener noreferrer">
                       {source.title}
                     </SourceLink>
@@ -205,12 +237,46 @@ const ResultsSection = styled.div`
   overflow-x: auto;
 `;
 
-const Answer = styled.div`
+const AnswerSection = styled.div`
   color: #fff;
   font-size: 1.1rem;
   line-height: 1.6;
   margin-bottom: 1.5rem;
-  white-space: pre-wrap;
+
+  /* Style markdown elements */
+  h1, h2, h3, h4, h5, h6 {
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+  }
+
+  ul, ol {
+    margin: 1em 0;
+    padding-left: 2em;
+  }
+
+  li {
+    margin: 0.5em 0;
+  }
+
+  strong {
+    color: #0070f3;
+  }
+
+  p {
+    margin: 1em 0;
+  }
+
+  /* Math formula styles */
+  .katex {
+    font-size: 1.1em;
+    color: #fff;
+  }
+
+  .katex-display {
+    margin: 1em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
 `;
 
 const SourcesSection = styled.div`
@@ -242,4 +308,11 @@ const SourceLink = styled.a`
   &:hover {
     text-decoration: underline;
   }
+`;
+
+const SourceNumber = styled.span`
+  color: #666;
+  margin-right: 0.5rem;
+  min-width: 1.5rem;
+  display: inline-block;
 `;
