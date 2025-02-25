@@ -14,10 +14,30 @@ import 'katex/dist/katex.min.css';
  * - Search bar (input + button)
  * - Information cards below
  */
+
+interface Source {
+  title: string;
+  link: string;
+  number: number;
+}
+
+interface SearchResults {
+  answer: string;
+  sources: Source[];
+  isMarkdown: boolean;
+}
+
+interface ConversationEntry {
+  query: string;
+  results: SearchResults;
+  timestamp: number;
+}
+
 const Home: FC = () => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResults | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [history, setHistory] = useState<ConversationEntry[]>([]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,10 +48,22 @@ const Home: FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query })
+        body: JSON.stringify({ 
+          query,
+          history // We're sending it but not using it yet in the agent
+        })
       });
       const data = await response.json();
+      
+      // Add new entry to history
+      const newEntry: ConversationEntry = {
+        query,
+        results: data,
+        timestamp: Date.now()
+      };
+      
       setResults(data);
+      setHistory(prev => [...prev, newEntry]);
     } catch (error) {
       setResults(null);
       console.error('Search failed:', error);
@@ -40,21 +72,21 @@ const Home: FC = () => {
     }
   };
 
-  const customRenderers = {
-    a: ({ href, children }: { href: string, children: React.ReactNode }) => {
+  const customRenderers: Components = {
+    a: ({ href, children, ...props }) => {
       const sourceMatch = children?.toString().match(/\[Source (\d+)\]/);
       if (sourceMatch && results?.sources) {
         const sourceNumber = parseInt(sourceMatch[1]) - 1;
         const source = results.sources[sourceNumber];
         if (source) {
           return (
-            <SourceLink href={source.link} target="_blank" rel="noopener noreferrer">
+            <SourceLink href={source.link} target="_blank" rel="noopener noreferrer" {...props}>
               {children}
             </SourceLink>
           );
         }
       }
-      return <SourceLink href={href} target="_blank" rel="noopener noreferrer">{children}</SourceLink>;
+      return <SourceLink href={href || '#'} target="_blank" rel="noopener noreferrer" {...props}>{children}</SourceLink>;
     }
   };
 
@@ -85,11 +117,11 @@ const Home: FC = () => {
             </ReactMarkdown>
           </AnswerSection>
           
-          {results.sources.length > 0 && (
+          {results.sources?.length > 0 && (
             <SourcesSection>
               <SourcesTitle>Sources:</SourcesTitle>
               <SourcesList>
-                {results.sources.map((source, index: number) => (
+                {results.sources.map((source, index) => (
                   <SourceItem key={index}>
                     <SourceNumber>{index + 1}.</SourceNumber>
                     <SourceLink href={source.link} target="_blank" rel="noopener noreferrer">
@@ -101,6 +133,29 @@ const Home: FC = () => {
             </SourcesSection>
           )}
         </ResultsSection>
+      )}
+
+      {history.length > 0 && (
+        <HistorySection>
+          <HistoryTitle>Previous Questions</HistoryTitle>
+          {history.map((entry, index) => (
+            <HistoryEntry key={index}>
+              <HistoryQuery>Q: {entry.query}</HistoryQuery>
+              <HistoryAnswer>
+                <ReactMarkdown
+                  components={customRenderers}
+                  remarkPlugins={[remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                >
+                  {entry.results.answer}
+                </ReactMarkdown>
+              </HistoryAnswer>
+              <HistoryTimestamp>
+                {new Date(entry.timestamp).toLocaleString()}
+              </HistoryTimestamp>
+            </HistoryEntry>
+          ))}
+        </HistorySection>
       )}
 
       <CardsSection>
@@ -315,4 +370,46 @@ const SourceNumber = styled.span`
   margin-right: 0.5rem;
   min-width: 1.5rem;
   display: inline-block;
+`;
+
+const HistorySection = styled.div`
+  width: 80%;
+  max-width: 800px;
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+`;
+
+const HistoryTitle = styled.h2`
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: #fff;
+`;
+
+const HistoryEntry = styled.div`
+  padding: 1rem;
+  border-bottom: 1px solid #333;
+  
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const HistoryQuery = styled.div`
+  font-weight: bold;
+  color: #0070f3;
+  margin-bottom: 0.5rem;
+`;
+
+const HistoryAnswer = styled.div`
+  color: #ccc;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+`;
+
+const HistoryTimestamp = styled.div`
+  color: #666;
+  font-size: 0.8rem;
+  text-align: right;
 `;

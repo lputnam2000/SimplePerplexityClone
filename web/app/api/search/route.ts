@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getJson } from 'serpapi';
 
+interface SearchResponse {
+  organic_results: Array<{
+    title: string;
+    link: string;
+    snippet: string;
+  }>;
+  knowledge_graph?: {
+    title?: string;
+    description?: string;
+  };
+  related_searches?: Array<{
+    query: string;
+  }>;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
@@ -32,7 +47,7 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({
-      organic_results: results.organic_results,
+      organic_results: results.organic_results || [],
       knowledge_graph: results.knowledge_graph,
       related_searches: results.related_searches
     });
