@@ -74,16 +74,44 @@ async function parseJsonResponse(text: string, retryCount = 0): Promise<SubQuery
   }
 }
 
-async function getSubQueries(query: string, baseUrl: string): Promise<SubQuery[]> {
+// Note: In a production system, we would:
+// 1. Store conversations in a vector database (e.g., Pinecone, Weaviate)
+// 2. Embed each Q&A pair using an embedding model (e.g., OpenAI embeddings)
+// 3. Perform semantic similarity search to find relevant context
+// 4. Use RAG (Retrieval Augmented Generation) to provide more accurate responses
+
+function formatChatHistory(history: RequestBody['history']): string {
+  if (!history || history.length === 0) return '';
+
+  // Take only the last 3 conversations
+  const recentHistory = history.slice(-3);
+  
+  return `
+Previous relevant conversations:
+${recentHistory.map((entry, index) => `
+Q${index + 1}: ${entry.query}
+A${index + 1}: ${entry.results.answer}
+`).join('\n')}
+
+`;
+}
+
+async function getSubQueries(query: string, baseUrl: string, history: RequestBody['history']): Promise<SubQuery[]> {
   console.log("\n=== Starting Sub-Query Generation ===");
   console.log("Original query:", query);
+  
+  const chatHistory = formatChatHistory(history);
+  console.log("Including chat history:", chatHistory ? "Yes" : "No");
 
   const response = await fetch(`${baseUrl}/api/llm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       query: 
-        `Break down this question into specific sub-queries that need to be searched to provide a complete answer. 
+        `${chatHistory}
+         Based on the conversation history above (if any) and the new question,
+         break down this question into specific sub-queries that need to be searched to provide a complete answer.
+         Consider previous context when relevant.
          Format the response as a JSON array of objects, each with 'query' and 'reason' fields.
          Example format:
          [
@@ -92,7 +120,7 @@ async function getSubQueries(query: string, baseUrl: string): Promise<SubQuery[]
              "reason": "why this information is needed"
            }
          ]
-         Question: ${query}`,
+         New Question: ${query}`,
       context: ''
     })
   });
@@ -128,7 +156,7 @@ export async function POST(request: NextRequest) {
   console.log("\n====== Agent Process Started ======");
   try {
     const body = await request.json() as RequestBody;
-    const { query } = body;
+    const { query, history } = body;
 
     if (!query) {
       console.warn("Request received with no query");
@@ -145,9 +173,9 @@ export async function POST(request: NextRequest) {
 
     console.log("\nMain query:", query);
 
-    // Step 1: Generate sub-queries
+    // Step 1: Generate sub-queries with history context
     console.log("\n=== Step 1: Generating Sub-Queries ===");
-    const subQueries = await getSubQueries(query, baseUrl);
+    const subQueries = await getSubQueries(query, baseUrl, history);
     console.log("Generated sub-queries:", JSON.stringify(subQueries, null, 2));
 
     // Step 2: Search for each sub-query
@@ -174,16 +202,22 @@ export async function POST(request: NextRequest) {
       fullContext += '---\n\n';
     }
 
-    // Step 3: Generate final answer
+    // Step 3: Generate final answer with history context
     console.log("\n=== Step 3: Generating Final Answer ===");
     console.log("Sending consolidated context to LLM");
+    const chatHistory = formatChatHistory(history);
+    
     const llmResponse = await fetch(`${baseUrl}/api/llm`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        query: `Based on the search results for multiple sub-queries, please provide a comprehensive answer to this question: ${query}
+        query: `${chatHistory}
+               Based on the conversation history above (if any) and the search results for multiple sub-queries,
+               please provide a comprehensive answer to this question: ${query}
+               
+               If the question relates to previous conversations, incorporate that context in your response.
                Format your response in markdown.
                When citing sources, use markdown links with the source number, like this: [[Source 1]](source1-url)
                Make important points and section headers bold using markdown (**text**).
@@ -228,3 +262,10 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// Note: Potential improvements for production:
+// 1. Use vector embeddings to find semantically similar previous conversations
+// 2. Store conversation embeddings in a vector database for efficient retrieval
+// 3. Implement sliding window context selection based on relevance scores
+// 4. Add fine-grained relevance filtering using cosine similarity thresholds
+// 5. Implement token counting to manage context window size

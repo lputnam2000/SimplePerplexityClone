@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import { Components } from 'react-markdown';
 
 /**
  * Home Page - Clone of the described dark-themed search interface.
@@ -50,9 +51,10 @@ const Home: FC = () => {
         },
         body: JSON.stringify({ 
           query,
-          history // We're sending it but not using it yet in the agent
+          history: history.slice(-3)
         })
       });
+      
       const data = await response.json();
       
       // Add new entry to history
